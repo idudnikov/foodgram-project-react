@@ -16,6 +16,7 @@ class Ingredient(models.Model):
     )
 
     class Meta:
+        ordering = ["-id"]
         verbose_name = "Ингредиент"
         verbose_name_plural = "Ингредиенты"
 
@@ -89,6 +90,7 @@ class Recipe(models.Model):
     )
 
     class Meta:
+        ordering = ["-id"]
         verbose_name = "Рецепт"
         verbose_name_plural = "Рецепты"
 
@@ -141,6 +143,8 @@ class FavoritedRecipe(models.Model):
             fields=["user", "recipe"],
             name="Нельзя добавлять рецепт в избранное более одного раза"
         )]
+        verbose_name = "Избранное"
+        verbose_name_plural = "Избранные"
 
 
 class ShoppingCart(models.Model):
@@ -165,3 +169,5 @@ class ShoppingCart(models.Model):
             fields=["user", "recipe"],
             name="Нельзя добавлять рецепт в коризну более одного раза"
         )]
+        verbose_name = "Корзина"
+        verbose_name_plural = "Корзины"

@@ -13,7 +13,7 @@ class CustomUser(AbstractBaseUser, PermissionsMixin):
     last_name = models.CharField("Фамилия", max_length=150, blank=True)
     is_staff = models.BooleanField(default=False)
 
-    USERNAME_FIELD = "username"
+    USERNAME_FIELD = "email"
 
     objects = UserManager()
 
