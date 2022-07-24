@@ -20,14 +20,14 @@ from rest_framework.response import Response
 from users.models import Subscription
 
 from .filters import IngredientSearchFilter, RecipesFilter
-from .pagination import RecipePagination
+from .pagination import CustomPagination
 from .permissions import IsAdminOrReadOnly, IsOwnerOrReadOnly
 from .serializers import (
     CreateUserSerializer,
-    FavoritedRecipeSerializer,
     ListRetrieveIngredientSerializer,
     ListRetrieveUserSerializer,
     RecipeSerializer,
+    ShortRecipeSerializer,
     SubscriptionSerializer,
     TagSerializer,
 )
@@ -55,7 +55,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
     serializer_class = RecipeSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_class = RecipesFilter
-    pagination_class = RecipePagination
+    pagination_class = CustomPagination
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
@@ -66,12 +66,12 @@ class RecipeViewSet(viewsets.ModelViewSet):
             return Response({
                 "errors":
                     f"Ошибка! Данный рецепт уже добавлен в {params[model]}!"
-                 },
+            },
                 status=status.HTTP_400_BAD_REQUEST,
             )
         recipe = get_object_or_404(Recipe, id=pk)
         model.objects.create(user=user, recipe=recipe)
-        serializer = FavoritedRecipeSerializer(recipe)
+        serializer = ShortRecipeSerializer(recipe)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     def delete_recipe_object(self, model, user, pk):
@@ -80,10 +80,10 @@ class RecipeViewSet(viewsets.ModelViewSet):
         if object.exists():
             object.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
-        return Response(
-            {
-                "errors": f"Ошибка! Данный рецепт уже удален из {params[model]}!"
-            },
+        return Response({
+            "errors":
+                f"Ошибка! Данный рецепт уже удален из {params[model]}!"
+        },
             status=status.HTTP_400_BAD_REQUEST,
         )
 
@@ -150,7 +150,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
 
 class UsersViewSet(viewsets.ModelViewSet):
-    queryset = User.objects.all()
+    pagination_class = CustomPagination
 
     def get_serializer_class(self):
         if self.action in ("list", "retrieve"):
@@ -170,7 +170,7 @@ class UsersViewSet(viewsets.ModelViewSet):
                 return Response({
                     "errors":
                         "Ошибка! Подписка на данного автора уже оформлена!"
-                    },
+                },
                     status=status.HTTP_400_BAD_REQUEST,
                 )
             if user == author:
@@ -202,12 +202,14 @@ class UsersViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-    @action(detail=False, permission_classes=[IsAuthenticated])
+    @action(
+        methods=["get"], detail=False, permission_classes=[IsAuthenticated]
+    )
     def subscriptions(self, request):
         user = request.user
         queryset = Subscription.objects.filter(user=user)
-        pages = self.paginate_queryset(queryset)
+        pagination = self.paginate_queryset(queryset)
         serializer = SubscriptionSerializer(
-            pages, many=True, context={"request": request}
+            pagination, many=True, context={"request": request}
         )
         return self.get_paginated_response(serializer.data)

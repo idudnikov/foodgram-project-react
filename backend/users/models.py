@@ -1,5 +1,4 @@
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
 
 User = get_user_model()
@@ -14,7 +13,7 @@ class Subscription(models.Model):
         User,
         on_delete=models.CASCADE,
         related_name="follower",
-        verbose_name="Подпичсик",
+        verbose_name="Подписчик",
     )
     author = models.ForeignKey(
         User,

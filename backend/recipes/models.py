@@ -56,7 +56,7 @@ class Recipe(models.Model):
         null=False,
     )
     image = models.ImageField(
-        upload_to="recipes/media/",
+        upload_to="recipes/",
         verbose_name="Изображение",
         blank=False,
         null=False,

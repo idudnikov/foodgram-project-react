@@ -3,7 +3,14 @@ from import_export import resources
 from import_export.admin import ImportExportModelAdmin
 
 from .forms import TagForm
-from .models import FavoritedRecipe, Ingredient, Recipe, ShoppingCart, Tag
+from .models import (
+    FavoritedRecipe,
+    Ingredient,
+    Recipe,
+    RecipeIngredient,
+    ShoppingCart,
+    Tag,
+)
 
 
 class IngredientResource(resources.ModelResource):
@@ -30,8 +37,9 @@ class RecipeAdmin(admin.ModelAdmin):
     list_filter = ("author", "name", "tags")
 
     def count_favorites(self, obj):
-        return obj.favorites.count()
+        return obj.favorited_recipe.count()
 
 
+admin.site.register(RecipeIngredient)
 admin.site.register(ShoppingCart)
 admin.site.register(FavoritedRecipe)

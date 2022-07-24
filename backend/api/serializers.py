@@ -167,22 +167,18 @@ class RecipeSerializer(serializers.ModelSerializer):
         return instance
 
 
-class FavoritedRecipeSerializer(serializers.ModelSerializer):
+class ShortRecipeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Recipe
         fields = ("id", "name", "image", "cooking_time")
 
 
 class SubscriptionSerializer(serializers.ModelSerializer):
-    email = serializers.EmailField(source="author.email", read_only=True)
-    id = serializers.CharField(source="author.id", read_only=True)
-    username = serializers.CharField(source="author.username", read_only=True)
-    first_name = serializers.CharField(
-        source="author.first_name", read_only=True
-    )
-    last_name = serializers.CharField(
-        source="author.last_name", read_only=True
-    )
+    email = serializers.ReadOnlyField(source="author.email")
+    id = serializers.ReadOnlyField(source="author.id")
+    username = serializers.ReadOnlyField(source="author.username")
+    first_name = serializers.ReadOnlyField(source="author.first_name")
+    last_name = serializers.ReadOnlyField(source="author.last_name")
     is_subscribed = serializers.SerializerMethodField()
     recipes = serializers.SerializerMethodField()
     recipes_count = serializers.SerializerMethodField()
@@ -211,7 +207,7 @@ class SubscriptionSerializer(serializers.ModelSerializer):
         queryset = Recipe.objects.filter(author=obj.author)
         if recipes_limit:
             queryset = queryset[: int(recipes_limit)]
-        return FavoritedRecipeSerializer(queryset, many=True).data
+        return ShortRecipeSerializer(queryset, many=True).data
 
     def get_recipes_count(self, obj):
         return Recipe.objects.filter(author=obj.author).count()
