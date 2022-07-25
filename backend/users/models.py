@@ -5,10 +5,6 @@ User = get_user_model()
 
 
 class Subscription(models.Model):
-    """
-    Класс, описывающий подписку одного пользователя на другого.
-    """
-
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
@@ -31,3 +27,7 @@ class Subscription(models.Model):
                 name="Нельзя подписываться на одного автора более одного раза",
             )
         ]
+
+    def __str__(self):
+        return f'Подписка пользователя "{self.user.username}" на пользователя' \
+               f' "{self.author.username}"'
