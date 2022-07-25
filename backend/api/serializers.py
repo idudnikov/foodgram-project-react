@@ -1,6 +1,6 @@
 from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
-from djoser.serializers import UserCreateSerializer
+from djoser.serializers import UserCreateSerializer, UserSerializer
 from drf_extra_fields.fields import Base64ImageField
 from recipes.models import (
     FavoritedRecipe,
@@ -17,7 +17,7 @@ from users.models import Subscription
 User = get_user_model()
 
 
-class ListRetrieveUserSerializer(serializers.ModelSerializer):
+class ListRetrieveUserSerializer(UserSerializer):
     is_subscribed = serializers.SerializerMethodField()
 
     class Meta:

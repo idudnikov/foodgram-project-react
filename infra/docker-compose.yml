@@ -8,12 +8,6 @@ services:
     env_file:
       - ./.env
 
-  collectstatic:
-    build: ../backend
-    volumes:
-      - static_value:/app/static/
-    command: bash -c "python3 ./manage.py collectstatic --noinput;"
-
   backend:
     build: ../backend
     restart: always

@@ -2,6 +2,7 @@ from django.contrib.auth import get_user_model
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
+from djoser.views import UserViewSet
 from recipes.models import (
     FavoritedRecipe,
     Ingredient,
@@ -15,13 +16,13 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from users.models import Subscription
 
 from .filters import IngredientSearchFilter, RecipesFilter
 from .pagination import CustomPagination
-from .permissions import IsAdminOrReadOnly, IsOwnerOrReadOnly
+from .permissions import IsOwnerOrReadOnly
 from .serializers import (
     CreateUserSerializer,
     ListRetrieveIngredientSerializer,
@@ -36,13 +37,13 @@ User = get_user_model()
 
 
 class TagViewSet(viewsets.ReadOnlyModelViewSet):
-    permission_classes = (IsAdminOrReadOnly,)
+    permission_classes = (AllowAny,)
     queryset = Tag.objects.all()
     serializer_class = TagSerializer
 
 
 class IngredientViewSet(viewsets.ReadOnlyModelViewSet):
-    permission_classes = (IsAdminOrReadOnly,)
+    permission_classes = (AllowAny,)
     queryset = Ingredient.objects.all()
     serializer_class = ListRetrieveIngredientSerializer
     filter_backends = (IngredientSearchFilter,)
@@ -50,7 +51,7 @@ class IngredientViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class RecipeViewSet(viewsets.ModelViewSet):
-    permission_classes = [IsOwnerOrReadOnly]
+    permission_classes = (IsOwnerOrReadOnly,)
     queryset = Recipe.objects.all()
     serializer_class = RecipeSerializer
     filter_backends = [DjangoFilterBackend]
@@ -120,10 +121,14 @@ class RecipeViewSet(viewsets.ModelViewSet):
             "ingredient__name", "ingredient__measurement_unit", "amount"
         )
         for ingredient in ingredients:
-            ingredients_list[ingredient[0]] = {
-                "measurement_unit": ingredient[1],
-                "amount": ingredient[2],
-            }
+            ingredient_name = ingredient[0]
+            if ingredient_name not in ingredients_list:
+                ingredients_list[ingredient_name] = {
+                    "measurement_unit": ingredient[1],
+                    "amount": ingredient[2],
+                }
+            else:
+                ingredients_list[ingredient_name]["amount"] += ingredient[2]
         pdfmetrics.registerFont(TTFont("Verdana", "Verdana.ttf", "UTF-8"))
         response = HttpResponse(content_type="application/pdf")
         response["Content-Disposition"] = (
@@ -149,7 +154,8 @@ class RecipeViewSet(viewsets.ModelViewSet):
         return response
 
 
-class UsersViewSet(viewsets.ModelViewSet):
+class UsersViewSet(UserViewSet):
+    queryset = User.objects.all()
     pagination_class = CustomPagination
 
     def get_serializer_class(self):
@@ -162,9 +168,9 @@ class UsersViewSet(viewsets.ModelViewSet):
         detail=True,
         permission_classes=[IsAuthenticated],
     )
-    def subscribe(self, request, pk=None):
+    def subscribe(self, request, id=None):
         user = request.user
-        author = get_object_or_404(User, id=pk)
+        author = get_object_or_404(User, id=id)
         if request.method == "POST":
             if Subscription.objects.filter(user=user, author=author).exists():
                 return Response({

@@ -152,23 +152,21 @@ REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (
         "rest_framework.authentication.TokenAuthentication",
     ),
-    "DEFAULT_FILTER_BACKENDS": [
-        "django_filters.rest_framework.DjangoFilterBackend"
-    ],
-    "DEFAULT_PERMISSION_CLASSES": [
-        "rest_framework.permissions.IsAuthenticatedOrReadOnly",
-    ],
+    "DEFAULT_FILTER_BACKENDS": (
+        "django_filters.rest_framework.DjangoFilterBackend",
+    ),
 }
 
 DJOSER = {
     "LOGIN_FIELD": "email",
     "HIDE_USERS": False,
     "SERIALIZERS": {
-        "user": "api.serializers.ListRetrieveUserSerializer",
         "current_user": "api.serializers.ListRetrieveUserSerializer",
+        "user": "api.serializers.ListRetrieveUserSerializer",
         "user_create": "api.serializers.CreateUserSerializer",
     },
     "PERMISSIONS": {
+        "current_user": ("rest_framework.permissions.AllowAny",),
         "user": ("rest_framework.permissions.IsAuthenticated",),
         "user_list": ("rest_framework.permissions.AllowAny",),
     },

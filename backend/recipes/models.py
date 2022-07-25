@@ -5,10 +5,6 @@ User = get_user_model()
 
 
 class Ingredient(models.Model):
-    """
-    Класс, описывающий модель Ингредиента.
-    """
-
     name = models.CharField(
         max_length=200, verbose_name="Наименование ингредиента"
     )
@@ -21,12 +17,11 @@ class Ingredient(models.Model):
         verbose_name = "Ингредиент"
         verbose_name_plural = "Ингредиенты"
 
+    def __str__(self):
+        return self.name
+
 
 class Tag(models.Model):
-    """
-    Класс, описывающий модель Тэга.
-    """
-
     name = models.CharField(max_length=100, verbose_name="Наименование тэга")
     color = models.CharField(
         max_length=7, default="#ffffff", verbose_name="Цветовой HEX-код"
@@ -34,15 +29,15 @@ class Tag(models.Model):
     slug = models.SlugField(unique=True, verbose_name="Slug тэга")
 
     class Meta:
+        ordering = ["name"]
         verbose_name = "Тэг"
         verbose_name_plural = "Тэги"
 
+    def __str__(self):
+        return self.name
+
 
 class Recipe(models.Model):
-    """
-    Класс, описывающий модель Рецепта.
-    """
-
     author = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
@@ -85,12 +80,11 @@ class Recipe(models.Model):
         verbose_name = "Рецепт"
         verbose_name_plural = "Рецепты"
 
+    def __str__(self):
+        return self.name
+
 
 class RecipeIngredient(models.Model):
-    """
-    Класс, описывающий количество Ингредиента в Рецепте.
-    """
-
     recipe = models.ForeignKey(
         Recipe,
         on_delete=models.CASCADE,
@@ -108,15 +102,17 @@ class RecipeIngredient(models.Model):
     )
 
     class Meta:
-        verbose_name = "Количество ингредиента"
-        verbose_name_plural = "Количество ингредиентов"
+        verbose_name = "Ингредиенты рецепта"
+        verbose_name_plural = "Ингредиенты рецептов"
+
+    def __str__(self):
+        return (
+            f'Рецепт "{self.recipe.name}" - '
+            f'ингредиент "{self.ingredient.name}"'
+        )
 
 
 class FavoritedRecipe(models.Model):
-    """
-    Класс, описывающий Рецепты, добавленные пользователем в избранное.
-    """
-
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
@@ -137,15 +133,17 @@ class FavoritedRecipe(models.Model):
                 name="Нельзя добавлять рецепт в избранное более одного раза",
             )
         ]
-        verbose_name = "Избранное"
-        verbose_name_plural = "Избранные"
+        verbose_name = "Избранный рецепт"
+        verbose_name_plural = "Избранные рецепты"
+
+    def __str__(self):
+        return (
+            f'Избранный рецепт "{self.recipe.name}" пользователя'
+            f' "{self.user.username}"'
+        )
 
 
 class ShoppingCart(models.Model):
-    """
-    Класс, описывающий корзину покупок пользователя.
-    """
-
     user = models.ForeignKey(
         User,
         on_delete=models.CASCADE,
@@ -166,5 +164,8 @@ class ShoppingCart(models.Model):
                 name="Нельзя добавлять рецепт в коризну более одного раза",
             )
         ]
-        verbose_name = "Корзина"
-        verbose_name_plural = "Корзины"
+        verbose_name = "Список покупок"
+        verbose_name_plural = "Списки покупок"
+
+    def __str__(self):
+        return f'Список покупок пользователя "{self.user.username}"'
