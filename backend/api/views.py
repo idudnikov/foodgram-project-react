@@ -1,4 +1,5 @@
 from django.contrib.auth import get_user_model
+from django.db.models import Exists, OuterRef
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
@@ -16,6 +17,7 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from users.models import Subscription
@@ -51,12 +53,35 @@ class IngredientViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class RecipeViewSet(viewsets.ModelViewSet):
-    permission_classes = (IsOwnerOrReadOnly,)
-    queryset = Recipe.objects.all()
     serializer_class = RecipeSerializer
     filter_backends = [DjangoFilterBackend]
     filterset_class = RecipesFilter
     pagination_class = CustomPagination
+
+    def get_permissions(self):
+        if self.action in ('list', 'retrieve'):
+            permission_classes = (AllowAny,)
+        elif self.action in ('update', 'destroy', 'partial_update'):
+            permission_classes = (IsOwnerOrReadOnly,)
+        else:
+            permission_classes = (IsAuthenticated,)
+        return [permission() for permission in permission_classes]
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_authenticated:
+            is_favorited = user.favorited_recipe.filter(id=OuterRef('id'))
+            is_in_shopping_cart = user.shopping_cart.filter(
+                id=OuterRef('id'))
+            return Recipe.objects.annotate(
+                is_favorited=Exists(is_favorited),
+                is_in_shopping_cart=Exists(is_in_shopping_cart)
+            )
+        queryset = (
+            Recipe.objects.select_related("author").all()
+            .prefetch_related("tags", "ingredients")
+        )
+        return queryset
 
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
@@ -64,12 +89,10 @@ class RecipeViewSet(viewsets.ModelViewSet):
     def create_recipe_object(self, model, user, pk):
         params = {FavoritedRecipe: "избранное", ShoppingCart: "корзину"}
         if model.objects.filter(user=user, recipe__id=pk).exists():
-            return Response({
+            raise ValidationError({
                 "errors":
                     f"Ошибка! Данный рецепт уже добавлен в {params[model]}!"
-            },
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            })
         recipe = get_object_or_404(Recipe, id=pk)
         model.objects.create(user=user, recipe=recipe)
         serializer = ShortRecipeSerializer(recipe)
@@ -81,12 +104,10 @@ class RecipeViewSet(viewsets.ModelViewSet):
         if object.exists():
             object.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
-        return Response({
+        raise ValidationError({
             "errors":
                 f"Ошибка! Данный рецепт уже удален из {params[model]}!"
-        },
-            status=status.HTTP_400_BAD_REQUEST,
-        )
+        })
 
     @action(
         methods=["post", "delete"],
@@ -155,8 +176,14 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
 
 class UsersViewSet(UserViewSet):
-    queryset = User.objects.all()
     pagination_class = CustomPagination
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_authenticated:
+            is_subscribed = user.follower.filter(author=OuterRef('id'))
+            return User.objects.annotate(is_subscribed=Exists(is_subscribed))
+        return User.objects.all()
 
     def get_serializer_class(self):
         if self.action in ("list", "retrieve"):
@@ -173,47 +200,45 @@ class UsersViewSet(UserViewSet):
         author = get_object_or_404(User, id=id)
         if request.method == "POST":
             if Subscription.objects.filter(user=user, author=author).exists():
-                return Response({
+                raise ValidationError({
                     "errors":
                         "Ошибка! Подписка на данного автора уже оформлена!"
-                },
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+                })
             if user == author:
-                return Response(
-                    {"errors": "Ошибка! Подписка на самого себя невозможна!"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+                raise ValidationError({
+                    "errors":
+                        "Ошибка! Подписка на самого себя невозможна!"
+                })
             subscription = Subscription.objects.create(
                 user=user, author=author
             )
             serializer = SubscriptionSerializer(
-                subscription, context={"request": request}
+                subscription.author, context={"request": request}
             )
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         elif request.method == "DELETE":
             if user == author:
-                return Response(
-                    {"errors": "Ошибка! Отмена подписки на себя невозможна!"},
-                    status=status.HTTP_400_BAD_REQUEST,
-                )
+                raise ValidationError({
+                    "errors":
+                        "Ошибка! Отмена подписки на себя невозможна!"
+                })
             subscription = Subscription.objects.filter(
                 user=user, author=author
             )
             if subscription.exists():
                 subscription.delete()
                 return Response(status=status.HTTP_204_NO_CONTENT)
-            return Response(
-                {"errors": "Ошибка! Подписка на данного автора уже отменена!"},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
+            raise ValidationError({
+                "errors":
+                    "Ошибка! Подписка на данного автора уже отменена!"
+            })
 
     @action(
         methods=["get"], detail=False, permission_classes=[IsAuthenticated]
     )
     def subscriptions(self, request):
         user = request.user
-        queryset = Subscription.objects.filter(user=user)
+        queryset = User.objects.filter(following__user=user)
         pagination = self.paginate_queryset(queryset)
         serializer = SubscriptionSerializer(
             pagination, many=True, context={"request": request}

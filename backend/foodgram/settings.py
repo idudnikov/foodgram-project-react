@@ -34,6 +34,7 @@ DEBUG = False
 
 ALLOWED_HOSTS = ["*"]
 
+DATA_UPLOAD_MAX_MEMORY = 10 * 1024 * 1024
 
 # Application definition
 
