@@ -1,17 +1,9 @@
 from django.contrib.auth import get_user_model
-from django.db.models import Exists, OuterRef
+from django.db.models import Count, Exists, OuterRef
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from djoser.views import UserViewSet
-from recipes.models import (
-    FavoritedRecipe,
-    Ingredient,
-    Recipe,
-    RecipeIngredient,
-    ShoppingCart,
-    Tag,
-)
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfgen import canvas
@@ -20,20 +12,17 @@ from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from users.models import Subscription
 
+from recipes.models import (FavoritedRecipe, Ingredient, Recipe,
+                            RecipeIngredient, ShoppingCart, Tag)
+from users.models import Subscription
 from .filters import IngredientSearchFilter, RecipesFilter
 from .pagination import CustomPagination
 from .permissions import IsOwnerOrReadOnly
-from .serializers import (
-    CreateUserSerializer,
-    ListRetrieveIngredientSerializer,
-    ListRetrieveUserSerializer,
-    RecipeSerializer,
-    ShortRecipeSerializer,
-    SubscriptionSerializer,
-    TagSerializer,
-)
+from .serializers import (CustomUserSerializer,
+                          ListRetrieveIngredientSerializer, RecipeSerializer,
+                          ShortRecipeSerializer, ShortUserSerializer,
+                          SubscriptionSerializer, TagSerializer)
 
 User = get_user_model()
 
@@ -68,19 +57,20 @@ class RecipeViewSet(viewsets.ModelViewSet):
         return [permission() for permission in permission_classes]
 
     def get_queryset(self):
+        queryset = (
+            Recipe.objects.select_related("author")
+            .prefetch_related("tags", "ingredients")
+        )
         user = self.request.user
         if user.is_authenticated:
-            is_favorited = user.favorited_recipe.filter(id=OuterRef('id'))
-            is_in_shopping_cart = user.shopping_cart.filter(
-                id=OuterRef('id'))
-            return Recipe.objects.annotate(
+            is_favorited = FavoritedRecipe.objects.filter(
+                user=user, recipe=OuterRef("id"))
+            is_in_shopping_cart = ShoppingCart.objects.filter(
+                user=user, recipe=OuterRef("id"))
+            queryset = queryset.annotate(
                 is_favorited=Exists(is_favorited),
                 is_in_shopping_cart=Exists(is_in_shopping_cart)
             )
-        queryset = (
-            Recipe.objects.select_related("author").all()
-            .prefetch_related("tags", "ingredients")
-        )
         return queryset
 
     def perform_create(self, serializer):
@@ -179,16 +169,20 @@ class UsersViewSet(UserViewSet):
     pagination_class = CustomPagination
 
     def get_queryset(self):
+        queryset = User.objects.all()
         user = self.request.user
         if user.is_authenticated:
             is_subscribed = user.follower.filter(author=OuterRef('id'))
-            return User.objects.annotate(is_subscribed=Exists(is_subscribed))
-        return User.objects.all()
+            queryset = queryset.annotate(
+                is_subscribed=Exists(is_subscribed),
+                recipes_count=Count("recipes")
+            )
+        return queryset
 
     def get_serializer_class(self):
-        if self.action in ("list", "retrieve"):
-            return ListRetrieveUserSerializer
-        return CreateUserSerializer
+        if self.action in ("create",):
+            return ShortUserSerializer
+        return CustomUserSerializer
 
     @action(
         methods=["post", "delete"],
@@ -209,11 +203,13 @@ class UsersViewSet(UserViewSet):
                     "errors":
                         "Ошибка! Подписка на самого себя невозможна!"
                 })
-            subscription = Subscription.objects.create(
+            Subscription.objects.create(
                 user=user, author=author
             )
+            queryset = self.get_queryset()
+            queryset = queryset.filter(id=id).get()
             serializer = SubscriptionSerializer(
-                subscription.author, context={"request": request}
+                queryset, context={"request": request}
             )
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         elif request.method == "DELETE":
@@ -238,7 +234,8 @@ class UsersViewSet(UserViewSet):
     )
     def subscriptions(self, request):
         user = request.user
-        queryset = User.objects.filter(following__user=user)
+        queryset = self.get_queryset()
+        queryset = queryset.filter(following__user=user)
         pagination = self.paginate_queryset(queryset)
         serializer = SubscriptionSerializer(
             pagination, many=True, context={"request": request}

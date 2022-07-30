@@ -2,14 +2,39 @@ from django.contrib.auth import get_user_model
 from django.shortcuts import get_object_or_404
 from djoser.serializers import UserCreateSerializer, UserSerializer
 from drf_extra_fields.fields import Base64ImageField
-from recipes.models import Ingredient, Recipe, RecipeIngredient, Tag
 from rest_framework import serializers
 from rest_framework.validators import UniqueValidator
+
+from recipes.models import Ingredient, Recipe, RecipeIngredient, Tag
 
 User = get_user_model()
 
 
-class ListRetrieveUserSerializer(UserSerializer):
+class ShortUserSerializer(UserSerializer):
+
+    class Meta:
+        model = User
+        fields = (
+            "email", "id", "username", "first_name", "last_name"
+        )
+
+
+class CustomUserSerializer(UserCreateSerializer):
+    email = serializers.EmailField(
+        validators=[UniqueValidator(queryset=User.objects.all())],
+        max_length=254,
+        required=True,
+    )
+    id = serializers.IntegerField(required=False)
+    username = serializers.CharField(
+        validators=[UniqueValidator(queryset=User.objects.all())],
+        max_length=150,
+        required=True,
+    )
+    first_name = serializers.CharField(max_length=150, required=True)
+    last_name = serializers.CharField(max_length=150, required=True)
+    password = serializers.CharField(
+        max_length=150, required=True, write_only=True)
     is_subscribed = serializers.SerializerMethodField()
 
     class Meta:
@@ -20,37 +45,18 @@ class ListRetrieveUserSerializer(UserSerializer):
             "username",
             "first_name",
             "last_name",
-            "is_subscribed",
+            "password",
+            "is_subscribed"
         )
 
     def get_is_subscribed(self, obj):
         user = self.context.get('request').user
         if user.is_authenticated:
-            try:
-                return obj.is_subscribed
-            except AttributeError:
-                return user.follower.filter(author=obj).exists()
+            return (
+                obj.is_subscribed if hasattr(obj, 'is_subscribed')
+                else user.follower.filter(author=obj).exists()
+            )
         return False
-
-
-class CreateUserSerializer(UserCreateSerializer):
-    email = serializers.EmailField(
-        validators=[UniqueValidator(queryset=User.objects.all())],
-        max_length=254,
-        required=True,
-    )
-    username = serializers.CharField(
-        validators=[UniqueValidator(queryset=User.objects.all())],
-        max_length=150,
-        required=True,
-    )
-    first_name = serializers.CharField(max_length=150, required=True)
-    last_name = serializers.CharField(max_length=150, required=True)
-    password = serializers.CharField(max_length=150, required=True)
-
-    class Meta:
-        model = User
-        fields = ("email", "username", "first_name", "last_name", "password")
 
 
 class TagSerializer(serializers.ModelSerializer):
@@ -80,7 +86,7 @@ class RecipeIngredientSerializer(serializers.ModelSerializer):
 class RecipeSerializer(serializers.ModelSerializer):
     image = Base64ImageField()
     tags = TagSerializer(read_only=True, many=True)
-    author = ListRetrieveUserSerializer(read_only=True)
+    author = CustomUserSerializer(read_only=True)
     ingredients = RecipeIngredientSerializer(
         source="recipe_ingredient_recipe", read_only=True, many=True
     )
@@ -178,7 +184,7 @@ class ShortRecipeSerializer(serializers.ModelSerializer):
         fields = ("id", "name", "image", "cooking_time")
 
 
-class SubscriptionSerializer(ListRetrieveUserSerializer):
+class SubscriptionSerializer(CustomUserSerializer):
     recipes = serializers.SerializerMethodField()
     recipes_count = serializers.SerializerMethodField()
 
@@ -204,4 +210,4 @@ class SubscriptionSerializer(ListRetrieveUserSerializer):
         return ShortRecipeSerializer(queryset, many=True).data
 
     def get_recipes_count(self, obj):
-        return Recipe.objects.filter(author=obj.id).count()
+        return obj.recipes_count

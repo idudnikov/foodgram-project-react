@@ -3,14 +3,8 @@ from import_export import resources
 from import_export.admin import ImportExportModelAdmin
 
 from .forms import TagForm
-from .models import (
-    FavoritedRecipe,
-    Ingredient,
-    Recipe,
-    RecipeIngredient,
-    ShoppingCart,
-    Tag,
-)
+from .models import (FavoritedRecipe, Ingredient, Recipe, RecipeIngredient,
+                     ShoppingCart, Tag)
 
 
 class IngredientResource(resources.ModelResource):
